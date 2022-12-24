@@ -1,4 +1,4 @@
-# Variant of U-Boot
+# Variants of U-Boot
 with changes from different vendors
 
 This project is an attempt to create a tree of changes made to the original U-Boot
