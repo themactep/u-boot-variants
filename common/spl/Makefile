@@ -14,13 +14,23 @@ include $(TOPDIR)/config.mk
 LIB	= $(obj)libspl.o
 
 ifdef CONFIG_SPL_BUILD
+ifdef CONFIG_T31LC
 COBJS-$(CONFIG_SPL_FRAMEWORK) += spl.o
+else
+COBJS-$(CONFIG_SPL_FRAMEWORK) += spl.o
+endif
 COBJS-$(CONFIG_SPL_NOR_SUPPORT) += spl_nor.o
 COBJS-$(CONFIG_SPL_YMODEM_SUPPORT) += spl_ymodem.o
 COBJS-$(CONFIG_SPL_NAND_SUPPORT) += spl_nand.o
 COBJS-$(CONFIG_SPL_ONENAND_SUPPORT) += spl_onenand.o
 COBJS-$(CONFIG_SPL_NET_SUPPORT) += spl_net.o
 COBJS-$(CONFIG_SPL_MMC_SUPPORT) += spl_mmc.o
+COBJS-$(CONFIG_SPL_SFC_NOR) += spl_sfc_nor.o
+COBJS-$(CONFIG_SPL_SFC_NAND) += spl_sfc_nand.o
+
+ifndef CONFIG_SPL_LIBCOMMON_SUPPORT
+COBJS-y += spl_printf.o
+endif
 endif
 
 COBJS	:= $(sort $(COBJS-y))

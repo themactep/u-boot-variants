@@ -498,6 +498,7 @@ int fdt_resize(void *blob)
 	uint64_t addr, size;
 	int total, ret;
 	uint actualsize;
+	int fdt_memrsv = 0;
 
 	if (!blob)
 		return 0;
@@ -507,6 +508,7 @@ int fdt_resize(void *blob)
 		fdt_get_mem_rsv(blob, i, &addr, &size);
 		if (addr == (uintptr_t)blob) {
 			fdt_del_mem_rsv(blob, i);
+			fdt_memrsv = 1;
 			break;
 		}
 	}
@@ -528,9 +530,11 @@ int fdt_resize(void *blob)
 	fdt_set_totalsize(blob, actualsize);
 
 	/* Add the new reservation */
-	ret = fdt_add_mem_rsv(blob, (uintptr_t)blob, actualsize);
-	if (ret < 0)
-		return ret;
+	if (fdt_memrsv) {
+		ret = fdt_add_mem_rsv(blob, (uintptr_t)blob, actualsize);
+		if (ret < 0)
+			return ret;
+	}
 
 	return actualsize;
 }
