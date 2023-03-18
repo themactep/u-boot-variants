@@ -12,6 +12,7 @@ Tree of branches:
   - __isvp-sdk-t10-20-3.12.0__ (from ISVP-SDK-T10-20 v3.12.0)
   - __isvp-sdk-t30-1.0.5__ (from ISVP-SDK-T30 v1.0.5)
   - __isvp-sdk-t31-1.1.2__ (from ISVP-SDK-T31 v1.1.2)
+  - __isvp-sdk-t31-1.1.4__ (from ISVP-SDK-T31 v1.1.4)
   - __isvp-sdk-t31-1.1.5__ (from ISVP-SDK-T31 v1.1.5)
   - __wyze-v2__ (from https://support.wyze.com/hc/en-us/articles/360012546832-Open-Source-Software)
   - __wyze-v3__ (from https://support.wyze.com/hc/en-us/articles/360012546832-Open-Source-Software)
