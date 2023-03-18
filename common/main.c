@@ -70,7 +70,8 @@ static uint64_t endtime = 0;  /* must be set, default is instant timeout */
 static int      retry_time = -1; /* -1 so can call readline before main_loop */
 #endif
 
-#define	endtick(seconds) (get_ticks() + (uint64_t)(seconds) * get_tbclk())
+//#define	endtick(seconds) (get_ticks() + (uint64_t)(seconds) * get_tbclk())
+#define	endtick(seconds) ((uint64_t)(seconds) * get_tbclk())
 
 #ifndef CONFIG_BOOT_RETRY_MIN
 #define CONFIG_BOOT_RETRY_MIN CONFIG_BOOT_RETRY_TIME
@@ -90,6 +91,7 @@ extern void mdm_init(void); /* defined in board.c */
 static int abortboot_keyed(int bootdelay)
 {
 	int abort = 0;
+	unsigned long ts;
 	uint64_t etime = endtick(bootdelay);
 	struct {
 		char* str;
@@ -114,7 +116,7 @@ static int abortboot_keyed(int bootdelay)
 #endif
 
 #  ifdef CONFIG_AUTOBOOT_PROMPT
-	printf(CONFIG_AUTOBOOT_PROMPT);
+	printf(CONFIG_AUTOBOOT_PROMPT, bootdelay);
 #  endif
 
 #  ifdef CONFIG_AUTOBOOT_DELAY_STR
@@ -151,6 +153,7 @@ static int abortboot_keyed(int bootdelay)
 	/* In order to keep up with incoming data, check timeout only
 	 * when catch up.
 	 */
+	ts = get_timer(0);
 	do {
 		if (tstc()) {
 			if (presskey_len < presskey_max) {
@@ -182,7 +185,7 @@ static int abortboot_keyed(int bootdelay)
 				abort = 1;
 			}
 		}
-	} while (!abort && get_ticks() <= etime);
+	} while (!abort && get_timer(ts) <= etime);
 
 	if (!abort)
 		debug_bootkeys("key timeout\n");
@@ -411,7 +414,6 @@ static void process_boot_delay(void)
 #ifdef CONFIG_AUTOBOOT_KEYED
 		int prev = disable_ctrlc(1);	/* disable Control C checking */
 #endif
-
 		run_command_list(s, -1, 0);
 
 #ifdef CONFIG_AUTOBOOT_KEYED
@@ -1068,6 +1070,14 @@ int readline_into_buffer(const char *const prompt, char *buffer, int timeout)
 		while (!tstc()) {
 			show_activity(0);
 			WATCHDOG_RESET();
+		}
+#endif
+
+
+#if defined(CONFIG_USB_GADGET) && defined(CONFIG_USB_SELF_POLLING)
+		while (!tstc()) {
+			int usb_gadget_handle_interrupts(void);
+			usb_gadget_handle_interrupts();
 		}
 #endif
 		c = getc();
