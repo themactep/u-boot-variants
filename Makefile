@@ -285,11 +285,13 @@ LIBS-y += drivers/fpga/libfpga.o
 LIBS-y += drivers/gpio/libgpio.o
 LIBS-y += drivers/hwmon/libhwmon.o
 LIBS-y += drivers/i2c/libi2c.o
+LIBS-y += drivers/pwm/libpwm.o
 LIBS-y += drivers/input/libinput.o
 LIBS-y += drivers/misc/libmisc.o
 LIBS-y += drivers/mmc/libmmc.o
 LIBS-y += drivers/mtd/libmtd.o
 LIBS-y += drivers/mtd/nand/libnand.o
+LIBS-$(CONFIG_JZ_NAND_MGR) += drivers/nand/libnand.o
 LIBS-y += drivers/mtd/onenand/libonenand.o
 LIBS-y += drivers/mtd/ubi/libubi.o
 LIBS-y += drivers/mtd/spi/libspi_flash.o
@@ -301,6 +303,7 @@ LIBS-y += drivers/power/libpower.o \
 	drivers/power/fuel_gauge/libfuel_gauge.o \
 	drivers/power/pmic/libpmic.o \
 	drivers/power/battery/libbattery.o
+LIBS-y += drivers/regulator/libregulator.o
 LIBS-y += drivers/spi/libspi.o
 LIBS-y += drivers/dfu/libdfu.o
 ifeq ($(CPU),mpc83xx)
@@ -427,6 +430,25 @@ ALL-y += $(obj)u-boot-nodtb-tegra.bin
 endif
 endif
 
+ifeq ($(CONFIG_MBR_CREATOR),y)
+ALL-y += $(obj)u-boot-with-spl-mbr.bin
+else ifeq ($(CONFIG_GPT_CREATOR),y)
+ifeq ($(CONFIG_SPL_LZOP),y)
+ALL-y += $(obj)u-boot-lzo-with-spl-mbr-gpt.bin
+ALL-y += $(obj)u-boot-lzo-with-spl.bin
+else
+ALL-y += $(obj)u-boot-with-spl-mbr-gpt.bin
+ALL-y += $(obj)u-boot-with-spl.bin
+endif
+else
+ifeq ($(CONFIG_SPL_LZOP),y)
+ALL-y += $(obj)u-boot-lzo-with-spl.bin
+else
+ALL-y += $(obj)u-boot-with-spl.bin
+endif
+endif
+
+
 all:		$(ALL-y) $(SUBDIR_EXAMPLES)
 
 $(obj)u-boot.dtb:	$(obj)u-boot
@@ -465,6 +487,11 @@ ifndef CONFIG_SYS_UBOOT_START
 CONFIG_SYS_UBOOT_START := 0
 endif
 
+$(obj)u-boot-lzo.img:		$(obj)u-boot.bin
+		lzop -f -o u-boot-lzo.bin $(obj)u-boot.bin
+		mkimage -A mips -O u-boot -T firmware -C lzo -a $(CONFIG_SYS_TEXT_BASE) -e $(CONFIG_SYS_UBOOT_START) \
+			-n "u-boot-lzo.img" -d u-boot-lzo.bin  $@
+
 $(obj)u-boot.img:	$(obj)u-boot.bin
 		$(obj)tools/mkimage -A $(ARCH) -T firmware -C none \
 		-O u-boot -a $(CONFIG_SYS_TEXT_BASE) \
@@ -497,6 +524,12 @@ $(obj)u-boot-with-spl.bin: $(obj)spl/u-boot-spl.bin $(obj)u-boot.bin
 		$(OBJCOPY) ${OBJCFLAGS} --pad-to=$(CONFIG_SPL_PAD_TO) \
 			-I binary -O binary $< $(obj)spl/u-boot-spl-pad.bin
 		cat $(obj)spl/u-boot-spl-pad.bin $(obj)u-boot.bin > $@
+		rm $(obj)spl/u-boot-spl-pad.bin
+
+$(obj)u-boot-lzo-with-spl.bin: $(obj)spl/u-boot-spl.bin $(obj)u-boot-lzo.img
+		$(OBJCOPY) ${OBJCFLAGS} --pad-to=$(CONFIG_SPL_PAD_TO) \
+			-I binary -O binary $< $(obj)spl/u-boot-spl-pad.bin
+		cat $(obj)spl/u-boot-spl-pad.bin $(obj)u-boot-lzo.img > $@
 		rm $(obj)spl/u-boot-spl-pad.bin
 
 $(obj)u-boot-with-spl.imx: $(obj)spl/u-boot-spl.bin $(obj)u-boot.bin
@@ -569,6 +602,35 @@ $(obj)u-boot-img-spl-at-end.bin: $(obj)spl/u-boot-spl.bin $(obj)u-boot.img
 		dd if=$(obj)u-boot.img of=$(obj)u-boot-pad.img \
 			conv=notrunc 2>/dev/null
 		cat $(obj)u-boot-pad.img $(obj)spl/u-boot-spl.bin > $@
+
+$(obj)u-boot-with-spl-mbr.bin: $(obj)u-boot-with-spl.bin
+		cat $(obj)tools/ingenic-tools/mbr.bin $(obj)u-boot-with-spl.bin > $@
+
+ifeq ($(CONFIG_SPL_PARAMS_FIXER),y)
+$(obj)u-boot-with-spl-mbr-gpt.bin: $(obj)u-boot-with-spl.bin
+		cat $(obj)tools/ingenic-tools/mbr-gpt.bin $(obj)u-boot-with-spl.bin > $@
+		$(obj)tools/ingenic-tools/spl_params_fixer $@ $(obj)spl/u-boot-spl.bin 0 256 > /dev/null
+$(obj)u-boot-lzo-with-spl-mbr-gpt.bin: $(obj)u-boot-lzo-with-spl.bin
+		cat $(obj)tools/ingenic-tools/mbr-gpt.bin $(obj)u-boot-lzo-with-spl.bin > $@
+		$(obj)tools/ingenic-tools/spl_params_fixer $@ $(obj)spl/u-boot-spl.bin 0 256 > /dev/null
+else
+$(obj)u-boot-with-spl-mbr-gpt.bin: $(obj)u-boot-with-spl.bin
+ifneq ($(CONFIG_GPT_AT_TAIL),y)
+		cat $(obj)tools/ingenic-tools/mbr-gpt.bin $(obj)u-boot-with-spl.bin > $@
+else
+		@chmod +x $(obj)tools/ingenic-tools/mk-gpt-xboot.sh
+		$(obj)tools/ingenic-tools/mk-gpt-xboot.sh $(obj)tools/ingenic-tools/mbr-of-gpt.bin \
+		$(obj)u-boot-with-spl.bin $(obj)tools/ingenic-tools/gpt.bin $(CONFIG_GPT_TABLE_PATH)/partitions.tab $@
+endif
+$(obj)u-boot-lzo-with-spl-mbr-gpt.bin: $(obj)u-boot-lzo-with-spl.bin
+ifneq ($(CONFIG_GPT_AT_TAIL),y)
+		cat $(obj)tools/ingenic-tools/mbr-gpt.bin $(obj)u-boot-lzo-with-spl.bin > $@
+else
+		@chmod +x $(obj)tools/ingenic-tools/mk-gpt-xboot.sh
+		$(obj)tools/ingenic-tools/mk-gpt-xboot.sh $(obj)tools/ingenic-tools/mbr-of-gpt.bin \
+		$(obj)u-boot-lzo-with-spl.bin $(obj)tools/ingenic-tools/gpt.bin $(CONFIG_GPT_TABLE_PATH)/partitions.tab $@
+endif
+endif
 
 ifeq ($(CONFIG_SANDBOX),y)
 GEN_UBOOT = \
@@ -842,11 +904,13 @@ clean:
 	       $(obj)arch/blackfin/cpu/init.{lds,elf}
 	@rm -f $(obj)include/bmp_logo.h
 	@rm -f $(obj)include/bmp_logo_data.h
+	@rm -f $(obj)include/charge_logo.h
 	@rm -f $(obj)lib/asm-offsets.s
 	@rm -f $(obj)include/generated/asm-offsets.h
 	@rm -f $(obj)$(CPUDIR)/$(SOC)/asm-offsets.s
 	@rm -f $(TIMESTAMP_FILE) $(VERSION_FILE)
 	@$(MAKE) -s -C doc/DocBook/ cleandocs
+	@$(MAKE) -s -C $(TOPTREE)tools/ingenic-tools/ clean
 	@find $(OBJTREE) -type f \
 		\( -name 'core' -o -name '*.bak' -o -name '*~' -o -name '*.su' \
 		-o -name '*.o'	-o -name '*.a' -o -name '*.exe' \
@@ -889,6 +953,8 @@ clobber:	tidy
 	@[ ! -d $(obj)nand_spl ] || find $(obj)nand_spl -name "*" -type l -print | xargs rm -f
 	@rm -f $(obj)dts/*.tmp
 	@rm -f $(obj)spl/u-boot-spl{,-pad}.ais
+	@rm -f $(obj)u-boot-lzo.img
+	@rm -f $(obj)u-boot-lzo-with-spl.bin
 
 mrproper \
 distclean:	clobber unconfig
